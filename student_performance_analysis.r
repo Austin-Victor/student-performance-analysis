@@ -54,13 +54,18 @@ student_data <- student_data[student_data$Distance_from_Home != "", ]
 unique(student_data$Gender)
 unique(student_data$Exam_Score)
 
+
+
+#dropped the row with an exam score above 100
+student_data <- student_data[student_data$Exam_Score != 101, ]
+
 dim(student_data)
 colSums(is.na(student_data))
 str(student_data)
 
 #EDA(EXPLORATORY DATA ANALYSIS)
 summary(student_data)
-table(student_data$Access_to_Resources)
+table(student_data$Gender)
 
 #RELATIONSHIPS
 #Create a composite metric called level of dedication to school work
@@ -71,6 +76,35 @@ table(student_data$Access_to_Resources)
 #Parental Involvement vs Gender
 #Gender vs Study time
 
+#normalize Hours_studied and store in a new column
+student_data <- student_data %>%
+  mutate(
+    norm_hours = (
+      (Hours_Studied) - min(Hours_Studied))/(max(Hours_Studied) - min(Hours_Studied)
+    )
+  )
+
+#normalize Attendance and store in a new column
+student_data <- student_data %>%
+  mutate(norm_attendance = (Attendance / 100))
+max(student_data$LOD)
+
+#convert motivation level to weights(Low = 1, Medium = 2, High = 3)
+student_data$Motivation_Level <- recode(
+  student_data$Motivation_Level,
+  "High" = 3,
+  "Medium" = 2,
+  "Low" = 1,
+)
+
+# student_data <- student_data %>%
+#   mutate(
+#     norm_motivation_level = (
+#       Motivation_Level - min(Motivation_Level)) / (max(Motivation_Level) - min(Motivation_Level)
+#     )
+#   )
+
+
 student_data <- student_data %>%
   mutate(
     norm_hours = (
@@ -79,11 +113,22 @@ student_data <- student_data %>%
   )
 
 student_data <- student_data %>%
-  mutate(norm_attendance = (Attendance / 100))
+  mutate(LOD = (norm_hours + norm_attendance) / 2)
 
-student_data$Motivation_Level <- as.num
+#RELATIONSHIP BETWEEEN FAMILY INCOME AND EXAM SCORE
+student_data$Family_Income <- recode(
+  student_data$Family_Income,
+  "High" = 3,
+  "Medium" = 2,
+  "Low" = 1,
+)
+aggregate(Exam_Score ~ Family_Income, data = student_data, mean)
+cor(student_data$Family_Income, student_data$Exam_Score)
+boxplot(student_data$Family_Income ~ student_data$Exam_Score,data = student_data)
 
-
-#RELATIONSHIP BETWEEEN FAMILY INCOME AND EXAMSCORE
-
+#RELATIONSHIP BETWEEN GENDER & LEVEL OF DEDICATION(LOD)
+aggregate(Exam_Score ~ Parental_Education_Level, data = student_data, mean)
+t.test(LOD ~ Gender, data = student_data)
+boxplot(student_data$LOD ~ student_data$Exam_Score,data = student_data)
 View(student_data)
+
