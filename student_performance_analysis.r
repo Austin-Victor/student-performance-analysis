@@ -1,6 +1,10 @@
 install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("tidyverse")
 
 library(dplyr)
+library(ggplot2)
+
 #1. LOAD AND INSPECT THE DATA SET
 #load the dataset
 student_data <- read.csv("StudentPerformanceFactors.csv")
@@ -34,6 +38,7 @@ unique(student_data$Internet_Access)
 unique(student_data$Tutoring_Sessions)
 unique(student_data$Family_Income)
 unique(student_data$Teacher_Quality)
+
 #drops all rows with the Teacher_Quality column empty and assign to a new frame
 student_data <- student_data[student_data$Teacher_Quality != "", ]
 unique(student_data$Teacher_Quality)
@@ -53,10 +58,9 @@ student_data <- student_data[student_data$Distance_from_Home != "", ]
 
 unique(student_data$Gender)
 unique(student_data$Exam_Score)
+max(student_data$Exam_Score)
 
-
-
-#dropped the row with an exam score above 100
+#drop the row with an exam score above 100
 student_data <- student_data[student_data$Exam_Score != 101, ]
 
 dim(student_data)
@@ -69,12 +73,21 @@ table(student_data$Gender)
 
 #RELATIONSHIPS
 #Create a composite metric called level of dedication to school work
-#create a composite metric called level of exam performance
-#Family_Income vs Level of Exam performance
+#create a composite metric called level of Academic Infrastructure Index(AII)
+#Family_Income vs Level of Exam Score
 #Gender vs level of dedication
 #Level of Dedication vs Exam Score
 #Parental Involvement vs Gender
 #Gender vs Study time
+#AII vs exam score
+#Access to Resources and Internet access vs Level of Motivation
+#Motivation level vs Exam Score
+#Teacher Quality vs Exam Score
+#School type and teacher quality
+#School type and exam score
+#Previous Score vs Exam Score
+
+#CREATING A COMPOSITE METRIC CALLED LEVEL OF DEDICATION(LOD)
 
 #normalize Hours_studied and store in a new column
 student_data <- student_data %>%
@@ -89,6 +102,43 @@ student_data <- student_data %>%
   mutate(norm_attendance = (Attendance / 100))
 max(student_data$LOD)
 
+#Calculate LOD as normalized
+student_data <- student_data %>%
+  mutate(LOD = (norm_hours + norm_attendance) / 2)
+
+
+#CREATING A COMPOSITE METRIC CALLED Academic Infrastructure Index(AII)
+
+#convert Access to Resources to weights(Low = 1, Medium = 2, High = 3)
+student_data$Access_to_Resources <- recode(
+  student_data$Access_to_Resources,
+  "High" = 3,
+  "Medium" = 2,
+  "Low" = 1,
+)
+
+#convert Teacher Quality to weights(Low = 1, Medium = 2, High = 3)
+student_data$Teacher_Quality <- recode(
+  student_data$Teacher_Quality,
+  "High" = 3,
+  "Medium" = 2,
+  "Low" = 1,
+)
+
+#convert Internet Access to boolean(Yes = 1, No = 0)
+student_data$Internet_Access <- recode(
+  student_data$Internet_Access,
+  "Yes" = 1,
+  "yes" = 1,
+  "No" = 0,
+  "no" = 0,
+)
+
+#derive Academic Infrastructure Index(AII) and store in a new column 
+student_data <- student_data %>%
+  mutate(AII = ((Access_to_Resources + Internet_Access + Teacher_Quality) / 3))
+max(student_data$AII)
+
 #convert motivation level to weights(Low = 1, Medium = 2, High = 3)
 student_data$Motivation_Level <- recode(
   student_data$Motivation_Level,
@@ -96,24 +146,6 @@ student_data$Motivation_Level <- recode(
   "Medium" = 2,
   "Low" = 1,
 )
-
-# student_data <- student_data %>%
-#   mutate(
-#     norm_motivation_level = (
-#       Motivation_Level - min(Motivation_Level)) / (max(Motivation_Level) - min(Motivation_Level)
-#     )
-#   )
-
-
-student_data <- student_data %>%
-  mutate(
-    norm_hours = (
-      (Hours_Studied) - min(Hours_Studied))/(max(Hours_Studied) - min(Hours_Studied)
-    )
-  )
-
-student_data <- student_data %>%
-  mutate(LOD = (norm_hours + norm_attendance) / 2)
 
 #RELATIONSHIP BETWEEEN FAMILY INCOME AND EXAM SCORE
 student_data$Family_Income <- recode(
@@ -123,12 +155,85 @@ student_data$Family_Income <- recode(
   "Low" = 1,
 )
 aggregate(Exam_Score ~ Family_Income, data = student_data, mean)
-cor(student_data$Family_Income, student_data$Exam_Score)
-boxplot(student_data$Family_Income ~ student_data$Exam_Score,data = student_data)
+cor(student_data$Exam_Score, student_data$Family_Income)
+model <- lm(student_data$Exam_Score ~ student_data$Family_Income, data = student_data)
+summary(model)
+
+#represent the regression on box plot
+boxplot(
+  student_data$Exam_Score ~ student_data$Family_Income,
+  data = student_data,
+  main = "Family Income vs Exam Score",
+  xlab = "Family Income",
+  ylab = "Exam Score",
+  col = "lightblue"
+)
 
 #RELATIONSHIP BETWEEN GENDER & LEVEL OF DEDICATION(LOD)
-aggregate(Exam_Score ~ Parental_Education_Level, data = student_data, mean)
+aggregate(LOD ~ Gender, data = student_data, mean)
 t.test(LOD ~ Gender, data = student_data)
-boxplot(student_data$LOD ~ student_data$Exam_Score,data = student_data)
-View(student_data)
+plot(student_data$LOD ~ as.factor(student_data$Gender),data = student_data, col = "lightblue")
 
+#Level of Dedication vs Exam Score
+cor(student_data$LOD, student_data$Exam_Score)
+model1 <- lm(student_data$Exam_Score ~ student_data$LOD, data = student_data)
+summary(model1)
+plot(student_data$Exam_Score ~ student_data$LOD,data = student_data, col = "lightblue")
+abline(model1, col = "red", lwd = 2)
+
+
+#Parental Involvement vs Gender
+student_data$Parental_Involvement <- recode(
+  student_data$Parental_Involvement,
+  "High" = 3,
+  "Medium" = 2,
+  "Low" = 1,
+)
+table(student_data$Gender, student_data$Parental_Involvement)
+prop.table(table(student_data$Gender, student_data$Parental_Involvement), 1)
+ggplot(student_data, aes(x = Gender, fill = Parental_Involvement)) + geom_bar(position = "dodge") + ylab("Count") + ggtitle("Parental Involment by Gender")
+mosaicplot(table(student_data$Gender, student_data$Parental_Involvement), color = TRUE)
+
+#Gender vs Study time
+aggregate(Hours_Studied ~ Gender, data = student_data, mean)
+t.test(Hours_Studied ~ Gender, data = student_data)
+plot(student_data$LOD ~ as.factor(student_data$Gender),data = student_data, col = "lightblue")
+
+
+# 3. LOD vs Exam Score
+# (Shows if higher dedication predicts better scores)
+cor(student_data$LOD, student_data$Exam_Score)
+plot(student_data$LOD, student_data$Exam_Score,
+     main = "LOD vs Exam Score",
+     xlab = "Level of Dedication", ylab = "Exam Score", pch = 19)
+
+# 4. Hours Studied vs Exam Score
+# (Direct relationship between time studying and results)
+cor(student_data$Hours_Studied, student_data$Exam_Score)
+plot(student_data$Hours_Studied, student_data$Exam_Score,
+     main = "Hours Studied vs Exam Score",
+     xlab = "Hours Studied", ylab = "Exam Score", pch = 19)
+
+# 5. Attendance vs Exam Score
+# (See if higher attendance is linked to performance)
+cor(student_data$Attendance, student_data$Exam_Score)
+plot(student_data$Attendance, student_data$Exam_Score,
+     main = "Attendance vs Exam Score",
+     xlab = "Attendance (%)", ylab = "Exam Score", pch = 19)
+
+# 6. Motivation Level vs Exam Score
+# (Checks if more motivated students score higher)
+cor(student_data$Motivation_Level, student_data$Exam_Score)
+boxplot(Exam_Score ~ Motivation_Level, data = student_data,
+        main = "Exam Score by Motivation Level",
+        xlab = "Motivation Level", ylab = "Exam Score")
+
+# 7. Parental Involvement vs Exam Score
+# (See if parents' support affects results)
+table(student_data$Parental_Involvement)
+boxplot(Exam_Score ~ Parental_Involvement, data = student_data,
+        main = "Exam Score by Parental Involvement",
+        xlab = "Parental Involvement", ylab = "Exam Score")
+
+
+View(student_data)
